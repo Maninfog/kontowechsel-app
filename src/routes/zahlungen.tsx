@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
@@ -6,6 +6,9 @@ import { Stepper } from "@/components/Stepper";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import type { ZahlungListRow } from "@/lib/map-zahlung-row";
+import { zahlungRowToStorePayment } from "@/lib/map-zahlung-row";
+import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/zahlungen")({
   head: () => ({
@@ -14,18 +17,7 @@ export const Route = createFileRoute("/zahlungen")({
   component: ZahlungenPage,
 });
 
-type PaymentType = "Lastschrift" | "Dauerauftrag";
-
-interface Payment {
-  id: string;
-  name: string;
-  type: PaymentType;
-  iban: string;
-  amount: number;
-  frequency: string;
-}
-
-const PAYMENTS: Payment[] = [
+const PAYMENTS: ZahlungListRow[] = [
   {
     id: "1",
     name: "Netflix",
@@ -129,7 +121,7 @@ function Ribbons() {
 }
 
 function ZahlungenPage() {
-  const navigate = useNavigate();
+  const { setFormData, nextStep, prevStep, currentStep } = useFlowStore();
   const [selected, setSelected] = useState<Set<string>>(
     new Set(PAYMENTS.map((p) => p.id)),
   );
@@ -188,7 +180,7 @@ function ZahlungenPage() {
 
         <div className="px-5 sm:px-8">
           <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 sm:p-5">
-            <Stepper currentStep={2} />
+            <Stepper currentStep={flowStepToStepperIndex(currentStep)} />
           </div>
         </div>
 
@@ -277,13 +269,14 @@ function ZahlungenPage() {
             </ul>
 
             <div className="mt-8 text-center">
-              <Link
-                to="/altes-konto"
+              <button
+                type="button"
+                onClick={() => prevStep()}
                 className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Zurück
-              </Link>
+              </button>
             </div>
           </div>
         </main>
@@ -303,7 +296,15 @@ function ZahlungenPage() {
             <Button
               type="button"
               disabled={count === 0}
-              onClick={() => navigate({ to: "/pruefen" })}
+              onClick={() => {
+                const rows = PAYMENTS.filter((p) => selected.has(p.id));
+                setFormData({
+                  selectedPayments: rows.map((p) =>
+                    zahlungRowToStorePayment(p, true),
+                  ),
+                });
+                nextStep();
+              }}
               className={cn(
                 "h-12 px-7 text-base font-semibold transition-all w-full sm:w-auto",
                 count > 0

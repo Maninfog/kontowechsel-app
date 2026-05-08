@@ -1,6 +1,6 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { ArrowLeft, ArrowRight, CalendarIcon, CheckCircle2, User } from "lucide-react";
 
@@ -12,6 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { detectGermanBank, formatIban, isLikelyValidIban, normalizeIban } from "@/lib/iban";
+import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/wechsel")({
   head: () => ({
@@ -68,10 +69,25 @@ function Ribbons() {
 }
 
 function NeuesKontoPage() {
-  const navigate = useNavigate();
+  const { formData, setFormData, nextStep, prevStep, currentStep } = useFlowStore();
   const [holder, setHolder] = useState("");
   const [iban, setIban] = useState("");
   const [date, setDate] = useState<Date | undefined>();
+
+  useEffect(() => {
+    setHolder(formData.customerName || "");
+    setIban(formData.newIban ? formatIban(formData.newIban) : "");
+    if (formData.switchDate) {
+      try {
+        const d = parseISO(formData.switchDate);
+        setDate(isNaN(d.getTime()) ? undefined : d);
+      } catch {
+        setDate(undefined);
+      }
+    } else {
+      setDate(undefined);
+    }
+  }, [formData.customerName, formData.newIban, formData.switchDate]);
 
   const detectedBank = useMemo(() => detectGermanBank(iban), [iban]);
   const ibanValid = isLikelyValidIban(iban);
@@ -101,7 +117,7 @@ function NeuesKontoPage() {
         {/* Stepper */}
         <div className="px-5 sm:px-8">
           <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 sm:p-5">
-            <Stepper currentStep={0} />
+            <Stepper currentStep={flowStepToStepperIndex(currentStep)} />
           </div>
         </div>
 
@@ -121,7 +137,13 @@ function NeuesKontoPage() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!canSubmit) return;
-                navigate({ to: "/altes-konto" });
+                setFormData({
+                  customerName: holder.trim(),
+                  newIban: normalizeIban(iban),
+                  newBankName: detectedBank ?? "",
+                  switchDate: date ? format(date, "yyyy-MM-dd") : "",
+                });
+                nextStep();
               }}
               className="mt-8 rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.5)] space-y-5"
             >
@@ -222,13 +244,14 @@ function NeuesKontoPage() {
             </form>
 
             <div className="mt-6 text-center">
-              <Link
-                to="/start"
+              <button
+                type="button"
+                onClick={() => prevStep()}
                 className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Zurück
-              </Link>
+              </button>
             </div>
           </div>
         </main>

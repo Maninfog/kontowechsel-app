@@ -1,10 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { ArrowLeft, Check, Pencil, Rocket } from "lucide-react";
+import { useMemo, useState } from "react";
+import { format, parseISO } from "date-fns";
+import { de } from "date-fns/locale";
+import { ArrowLeft, Check, Loader2, Pencil, Rocket } from "lucide-react";
+import { toast } from "sonner";
 
 import { Stepper } from "@/components/Stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatIban } from "@/lib/iban";
+import { supabase } from "@/lib/supabase";
+import { normalizeIban } from "@/lib/iban";
+import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/pruefen")({
   head: () => ({
@@ -13,23 +20,20 @@ export const Route = createFileRoute("/pruefen")({
   component: PruefenPage,
 });
 
-const ACCOUNT = {
-  holder: "Max Mustermann",
-  iban: "DE12 3456 7890 1234 5678 90",
-  bank: "Sparkasse München",
-  date: "01.06.2026",
-};
+function formatEur(n: number) {
+  return n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+}
 
-const PAYMENTS = [
-  { name: "Netflix", amount: "€ 12,99" },
-  { name: "Stadtwerke München", amount: "€ 89,50" },
-  { name: "Amazon Prime", amount: "€ 8,99" },
-  { name: "Miete — Hausverwaltung GmbH", amount: "€ 1.240,00" },
-  { name: "GEZ / ARD ZDF", amount: "€ 55,08" },
-  { name: "Vodafone GmbH", amount: "€ 39,99" },
-  { name: "Spotify", amount: "€ 10,99" },
-  { name: "Allianz Versicherung", amount: "€ 287,50" },
-];
+function formatSwitchDate(iso: string) {
+  if (!iso?.trim()) return "—";
+  try {
+    const d = parseISO(iso);
+    if (isNaN(d.getTime())) return iso;
+    return format(d, "PPP", { locale: de });
+  } catch {
+    return iso;
+  }
+}
 
 function Ribbons() {
   return (
@@ -62,11 +66,88 @@ function Ribbons() {
 
 function PruefenPage() {
   const navigate = useNavigate();
+  const { formData, prevStep, nextStep, currentStep } = useFlowStore();
   const [confirmed, setConfirmed] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const visible = showAll ? PAYMENTS : PAYMENTS.slice(0, 3);
-  const remaining = PAYMENTS.length - 3;
+  const reviewPayments = useMemo(
+    () =>
+      (formData.selectedPayments ?? []).filter((p) => p.selected !== false),
+    [formData.selectedPayments],
+  );
+
+  const visible = showAll ? reviewPayments : reviewPayments.slice(0, 3);
+  const remaining = reviewPayments.length - 3;
+
+  const holderDisplay = formData.customerName?.trim() || "—";
+  const ibanDisplay = formData.newIban
+    ? formatIban(formData.newIban)
+    : "—";
+  const bankDisplay = formData.newBankName?.trim() || "—";
+  const dateDisplay = formatSwitchDate(formData.switchDate);
+
+  const submitSwitch = async () => {
+    if (!confirmed || saving) return;
+    setSaving(true);
+    try {
+      const switchDate =
+        formData.switchDate?.trim() ||
+        new Date().toISOString().slice(0, 10);
+
+      const { data: caseRow, error: caseError } = await supabase
+        .from("switching_cases")
+        .insert({
+          customer_name: formData.customerName.trim(),
+          old_iban: normalizeIban(formData.oldIban || "") || "",
+          new_iban: normalizeIban(formData.newIban || "") || "",
+          new_bank_name: formData.newBankName.trim() || "Unbekannt",
+          switch_date: switchDate,
+          status: "pending" as const,
+        })
+        .select("id")
+        .single();
+
+      if (caseError) {
+        toast.error(caseError.message || "Kontowechsel konnte nicht gespeichert werden.");
+        return;
+      }
+      if (!caseRow?.id) {
+        toast.error("Keine Fall-ID von der Datenbank erhalten.");
+        return;
+      }
+
+      const caseId = caseRow.id as string;
+
+      if (reviewPayments.length > 0) {
+        const paymentRows = reviewPayments.map((p) => ({
+          case_id: caseId,
+          payee_name: p.payee_name,
+          payee_iban: normalizeIban(p.payee_iban || "") || p.payee_iban || "",
+          amount: p.amount,
+          frequency: p.frequency,
+          type: p.type,
+          selected: p.selected !== false,
+        }));
+
+        const { error: payError } = await supabase
+          .from("payments")
+          .insert(paymentRows);
+
+        if (payError) {
+          toast.error(payError.message || "Zahlungen konnten nicht gespeichert werden.");
+          return;
+        }
+      }
+
+      toast.success("Kontowechsel wurde übermittelt.");
+      nextStep();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ein unerwarteter Fehler ist aufgetreten.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -90,7 +171,7 @@ function PruefenPage() {
 
         <div className="px-5 sm:px-8">
           <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 sm:p-5">
-            <Stepper currentStep={3} />
+            <Stepper currentStep={flowStepToStepperIndex(currentStep)} />
           </div>
         </div>
 
@@ -113,10 +194,27 @@ function PruefenPage() {
                 title="Neues Konto"
                 onEdit={() => navigate({ to: "/wechsel" })}
               >
-                <Row label="Kontoinhaber" value={ACCOUNT.holder} />
-                <Row label="IBAN" value={ACCOUNT.iban} mono />
-                <Row label="Bank" value={ACCOUNT.bank} />
-                <Row label="Wechseldatum" value={ACCOUNT.date} />
+                <Row label="Kontoinhaber" value={holderDisplay} />
+                <Row label="IBAN" value={ibanDisplay} mono />
+                <Row label="Bank" value={bankDisplay} />
+                <Row label="Wechseldatum" value={dateDisplay} />
+                {(formData.oldBankName?.trim() || formData.oldIban?.trim()) && (
+                  <>
+                    <Row
+                      label="Alte Bank"
+                      value={formData.oldBankName?.trim() || "—"}
+                    />
+                    <Row
+                      label="Alte IBAN"
+                      value={
+                        formData.oldIban
+                          ? formatIban(formData.oldIban)
+                          : "—"
+                      }
+                      mono
+                    />
+                  </>
+                )}
               </SummaryCard>
 
               {/* Übertragene Zahlungen */}
@@ -126,19 +224,19 @@ function PruefenPage() {
                 onEdit={() => navigate({ to: "/zahlungen" })}
               >
                 <div className="text-sm font-semibold">
-                  {PAYMENTS.length} Zahlungen ausgewählt
+                  {reviewPayments.length} Zahlungen ausgewählt
                 </div>
                 <ul className="mt-3 space-y-2">
                   {visible.map((p) => (
                     <li
-                      key={p.name}
+                      key={p.id}
                       className="flex items-center justify-between gap-3 text-sm"
                     >
                       <span className="truncate text-foreground/90">
-                        {p.name}
+                        {p.payee_name}
                       </span>
                       <span className="font-semibold text-primary shrink-0">
-                        {p.amount}
+                        {formatEur(p.amount)}
                       </span>
                     </li>
                   ))}
@@ -152,7 +250,7 @@ function PruefenPage() {
                     + {remaining} weitere anzeigen
                   </button>
                 )}
-                {showAll && PAYMENTS.length > 3 && (
+                {showAll && reviewPayments.length > 3 && (
                   <button
                     type="button"
                     onClick={() => setShowAll(false)}
@@ -195,27 +293,37 @@ function PruefenPage() {
             {/* Submit */}
             <Button
               type="button"
-              disabled={!confirmed}
-              onClick={() => navigate({ to: "/fertig" })}
+              disabled={!confirmed || saving}
+              onClick={() => void submitSwitch()}
               className={cn(
                 "mt-6 w-full h-14 text-base sm:text-lg font-bold transition-all",
-                confirmed
+                confirmed && !saving
                   ? "bg-primary text-primary-foreground hover:bg-[color:var(--primary-hover)] shadow-[0_12px_40px_-10px_oklch(0.88_0.21_130/0.7)] ring-1 ring-primary/40"
                   : "bg-muted text-muted-foreground cursor-not-allowed opacity-60 hover:bg-muted",
               )}
             >
-              Jetzt Kontowechsel starten
-              <Rocket className="ml-2 h-5 w-5" />
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Wird gespeichert …
+                </>
+              ) : (
+                <>
+                  Jetzt Kontowechsel starten
+                  <Rocket className="ml-2 h-5 w-5" />
+                </>
+              )}
             </Button>
 
             <div className="mt-6 text-center">
-              <Link
-                to="/zahlungen"
+              <button
+                type="button"
+                onClick={() => prevStep()}
                 className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Zurück
-              </Link>
+              </button>
             </div>
           </div>
         </main>

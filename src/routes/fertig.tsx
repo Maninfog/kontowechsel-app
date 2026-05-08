@@ -5,6 +5,7 @@ import { Check, Download, Mail, Send } from "lucide-react";
 
 import { Stepper } from "@/components/Stepper";
 import { Button } from "@/components/ui/button";
+import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/fertig")({
   head: () => ({
@@ -77,6 +78,7 @@ function fireConfetti() {
 
 function FertigPage() {
   const navigate = useNavigate();
+  const { currentStep } = useFlowStore();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -107,7 +109,7 @@ function FertigPage() {
 
         <div className="px-5 sm:px-8">
           <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 sm:p-5">
-            <Stepper currentStep={4} />
+            <Stepper currentStep={flowStepToStepperIndex(currentStep)} />
           </div>
         </div>
 

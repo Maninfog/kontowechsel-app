@@ -1,7 +1,75 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/Stepper";
 import { Lock, ShieldCheck, Landmark } from "lucide-react";
+import { normalizeIban } from "@/lib/iban";
+import type { Payment } from "@/types/database";
+import { useFlowStore } from "@/store/useFlowStore";
+
+const DEMO_PLACEHOLDER_IBAN = "DE00000000000000000000";
+
+const DEMO_SELECTED_PAYMENTS: Payment[] = [
+  {
+    id: "demo-1",
+    case_id: "",
+    payee_name: "Netflix",
+    payee_iban: DEMO_PLACEHOLDER_IBAN,
+    amount: 12.99,
+    frequency: "monthly",
+    type: "lastschrift",
+    selected: true,
+  },
+  {
+    id: "demo-2",
+    case_id: "",
+    payee_name: "Stadtwerke München",
+    payee_iban: DEMO_PLACEHOLDER_IBAN,
+    amount: 89.0,
+    frequency: "monthly",
+    type: "lastschrift",
+    selected: true,
+  },
+  {
+    id: "demo-3",
+    case_id: "",
+    payee_name: "Amazon Prime",
+    payee_iban: DEMO_PLACEHOLDER_IBAN,
+    amount: 8.99,
+    frequency: "monthly",
+    type: "lastschrift",
+    selected: true,
+  },
+  {
+    id: "demo-4",
+    case_id: "",
+    payee_name: "Miete — Hausverwaltung GmbH",
+    payee_iban: DEMO_PLACEHOLDER_IBAN,
+    amount: 950.0,
+    frequency: "monthly",
+    type: "dauerauftrag",
+    selected: true,
+  },
+  {
+    id: "demo-5",
+    case_id: "",
+    payee_name: "GEZ / ARD ZDF",
+    payee_iban: DEMO_PLACEHOLDER_IBAN,
+    amount: 18.36,
+    frequency: "quarterly",
+    type: "lastschrift",
+    selected: true,
+  },
+  {
+    id: "demo-6",
+    case_id: "",
+    payee_name: "Fitnessstudio Elements",
+    payee_iban: DEMO_PLACEHOLDER_IBAN,
+    amount: 29.0,
+    frequency: "monthly",
+    type: "lastschrift",
+    selected: true,
+  },
+];
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -26,6 +94,22 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const navigate = useNavigate();
+  const { resetFlow, setFormData } = useFlowStore();
+
+  const startDemo = () => {
+    setFormData({
+      customerName: "Anna Müller",
+      newIban: normalizeIban("DE89 3704 0044 0532 0130 00"),
+      newBankName: "Deutsche Bank",
+      switchDate: "2026-06-01",
+      oldIban: normalizeIban("DE12 3456 7890 1234 5678 90"),
+      oldBankName: "Sparkasse München",
+      selectedPayments: DEMO_SELECTED_PAYMENTS,
+    });
+    navigate({ to: "/wechsel" });
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       {/* Decorative ribbons (top-right) */}
@@ -80,7 +164,9 @@ function Index() {
                 size="lg"
                 className="h-12 px-7 text-base font-semibold bg-primary text-primary-foreground hover:bg-[color:var(--primary-hover)] shadow-[0_8px_30px_-8px_oklch(0.88_0.21_130/0.5)]"
               >
-                <Link to="/start">Jetzt Konto wechseln</Link>
+                <Link to="/start" onClick={() => resetFlow()}>
+                  Jetzt Konto wechseln
+                </Link>
               </Button>
               <Button
                 asChild
@@ -89,6 +175,18 @@ function Index() {
                 className="h-12 px-7 text-base font-semibold border-2 border-primary text-foreground bg-transparent hover:bg-primary/10 hover:text-foreground"
               >
                 <Link to="/mitarbeiter">Als Mitarbeiter anmelden</Link>
+              </Button>
+            </div>
+
+            <div className="mt-6">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={startDemo}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Demo starten
               </Button>
             </div>
           </div>

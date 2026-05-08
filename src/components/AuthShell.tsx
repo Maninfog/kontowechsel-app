@@ -1,11 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 
+import { useFlowStore } from "@/store/useFlowStore";
+
 interface AuthShellProps {
   title: string;
   subtitle: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** When true, header “Zurück” runs `prevStep()` (Kunden-Flow) instead of linking home. */
+  flowBack?: boolean;
 }
 
 function Ribbons() {
@@ -44,7 +48,9 @@ function Ribbons() {
   );
 }
 
-export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
+export function AuthShell({ title, subtitle, children, footer, flowBack }: AuthShellProps) {
+  const { prevStep } = useFlowStore();
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <Ribbons />
@@ -59,13 +65,24 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
                 Global Finance Solutions
               </span>
             </Link>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Zurück
-            </Link>
+            {flowBack ? (
+              <button
+                type="button"
+                onClick={() => prevStep()}
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Zurück
+              </button>
+            ) : (
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Zurück
+              </Link>
+            )}
           </div>
         </header>
 

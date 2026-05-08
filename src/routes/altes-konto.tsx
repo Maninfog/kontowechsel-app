@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatIban } from "@/lib/iban";
+import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/altes-konto")({
   head: () => ({
@@ -34,7 +35,7 @@ export const Route = createFileRoute("/altes-konto")({
 
 type Mode = "auto" | "manual" | null;
 
-interface Payment {
+interface ManualPayment {
   id: string;
   recipient: string;
   iban: string;
@@ -101,12 +102,12 @@ function Ribbons() {
 }
 
 function AltesKontoPage() {
-  const navigate = useNavigate();
+  const { setFormData, nextStep, prevStep, currentStep } = useFlowStore();
   const [mode, setMode] = useState<Mode>(null);
   const [selectedBank, setSelectedBank] = useState<string | null>(null);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<ManualPayment[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [draft, setDraft] = useState<Omit<Payment, "id">>({
+  const [draft, setDraft] = useState<Omit<ManualPayment, "id">>({
     recipient: "",
     iban: "",
     amount: "",
@@ -153,7 +154,7 @@ function AltesKontoPage() {
         {/* Stepper — Altes Konto active */}
         <div className="px-5 sm:px-8">
           <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 sm:p-5">
-            <Stepper currentStep={1} />
+            <Stepper currentStep={flowStepToStepperIndex(currentStep)} />
           </div>
         </div>
 
@@ -229,6 +230,10 @@ function AltesKontoPage() {
                 {selectedBank && (
                   <button
                     type="button"
+                    onClick={() => {
+                      setFormData({ oldBankName: selectedBank, oldIban: "" });
+                      nextStep();
+                    }}
                     className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
                   >
                     <Lock className="h-4 w-4" />
@@ -428,7 +433,14 @@ function AltesKontoPage() {
               <Button
                 type="button"
                 disabled={!canContinue}
-                onClick={() => navigate({ to: "/zahlungen" })}
+                onClick={() => {
+                  if (mode === "auto") {
+                    setFormData({ oldBankName: selectedBank ?? "", oldIban: "" });
+                  } else {
+                    setFormData({ oldBankName: "", oldIban: "" });
+                  }
+                  nextStep();
+                }}
                 className={cn(
                   "w-full h-12 text-base font-semibold transition-all",
                   canContinue
@@ -441,13 +453,14 @@ function AltesKontoPage() {
               </Button>
 
               <div className="mt-5 text-center">
-                <Link
-                  to="/wechsel"
+                <button
+                  type="button"
+                  onClick={() => prevStep()}
                   className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Zurück
-                </Link>
+                </button>
               </div>
             </div>
           </div>

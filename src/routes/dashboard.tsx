@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/Stepper";
 import { cn } from "@/lib/utils";
+import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -170,6 +171,8 @@ function StatusBadge({ status }: { status: Status }) {
 }
 
 function DashboardPage() {
+  const { currentStep } = useFlowStore();
+
   const [filter, setFilter] = useState<"all" | Status>("all");
 
   const confirmed = PARTNERS.filter((p) => p.status === "confirmed").length;
@@ -206,7 +209,7 @@ function DashboardPage() {
 
         <div className="px-5 sm:px-8 pt-6">
           <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 sm:p-5">
-            <Stepper currentStep={5} />
+            <Stepper currentStep={flowStepToStepperIndex(currentStep)} />
           </div>
         </div>
 

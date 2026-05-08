@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowRight, Mail, User } from "lucide-react";
+import { useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/start")({
   head: () => ({
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/start")({
 });
 
 function StartPage() {
-  const navigate = useNavigate();
+  const { setFormData, nextStep } = useFlowStore();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [agreed, setAgreed] = useState(false);
@@ -32,6 +33,7 @@ function StartPage() {
     <AuthShell
       title="Kontowechsel starten"
       subtitle="Geben Sie Ihre Daten ein – wir führen Sie sicher durch alle 5 Schritte."
+      flowBack
       footer={
         <>
           Sie sind Mitarbeiter?{" "}
@@ -45,7 +47,8 @@ function StartPage() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!canSubmit) return;
-          navigate({ to: "/wechsel" });
+          setFormData({ customerName: name.trim() });
+          nextStep();
         }}
         className="space-y-5"
       >
