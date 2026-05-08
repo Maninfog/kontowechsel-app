@@ -9,7 +9,7 @@ import { Stepper } from "@/components/Stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatIban } from "@/lib/iban";
-import { supabase } from "@/lib/supabase";
+import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { normalizeIban } from "@/lib/iban";
 import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
@@ -89,8 +89,15 @@ function PruefenPage() {
 
   const submitSwitch = async () => {
     if (!confirmed || saving) return;
+    if (!isSupabaseConfigured()) {
+      toast.error(
+        "Supabase ist nicht konfiguriert. Bitte VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY auf Vercel setzen.",
+      );
+      return;
+    }
     setSaving(true);
     try {
+      const supabase = getSupabase();
       const switchDate =
         formData.switchDate?.trim() ||
         new Date().toISOString().slice(0, 10);
