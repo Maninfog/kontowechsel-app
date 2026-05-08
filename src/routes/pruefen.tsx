@@ -91,7 +91,7 @@ function PruefenPage() {
     if (!confirmed || saving) return;
     if (!isSupabaseConfigured()) {
       toast.error(
-        "Supabase ist nicht konfiguriert. Bitte VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY auf Vercel setzen.",
+        "Supabase ist nicht konfiguriert oder VITE_SUPABASE_URL ist ungültig. Auf Vercel: nur die Project-URL (https://….supabase.co), ohne /rest/v1, ohne Anführungszeichen.",
       );
       return;
     }
@@ -150,7 +150,12 @@ function PruefenPage() {
       toast.success("Kontowechsel wurde übermittelt.");
       nextStep();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ein unerwarteter Fehler ist aufgetreten.");
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(
+        msg.includes("Invalid path") || msg.includes("malformed")
+          ? `Netzwerk-/URL-Fehler (${msg}). Bitte VITE_SUPABASE_URL auf Vercel prüfen (nur https://…supabase.co).`
+          : msg,
+      );
     } finally {
       setSaving(false);
     }
