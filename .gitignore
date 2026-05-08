@@ -32,3 +32,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tooling / caches (from GitHub Node template)
+coverage
+*.lcov
+.nyc_output
+*.tsbuildinfo
+.eslintcache
+.vite/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
