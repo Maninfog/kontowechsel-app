@@ -12,6 +12,7 @@ node_modules/
 .env.local
 dist/
 dist-ssr
+.vercel/
 .output
 .vinxi
 .tanstack/**
