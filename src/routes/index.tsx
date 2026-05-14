@@ -3,73 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/Stepper";
 import { Lock, ShieldCheck, Landmark } from "lucide-react";
 import { normalizeIban } from "@/lib/iban";
-import type { Payment } from "@/types/database";
+import { zahlungRowToStorePayment } from "@/lib/map-zahlung-row";
+import { DEMO_PAYMENTS } from "@/data/demo-payments";
 import { useFlowStore } from "@/store/useFlowStore";
-
-const DEMO_PLACEHOLDER_IBAN = "DE00000000000000000000";
-
-const DEMO_SELECTED_PAYMENTS: Payment[] = [
-  {
-    id: "demo-1",
-    case_id: "",
-    payee_name: "Netflix",
-    payee_iban: DEMO_PLACEHOLDER_IBAN,
-    amount: 12.99,
-    frequency: "monthly",
-    type: "lastschrift",
-    selected: true,
-  },
-  {
-    id: "demo-2",
-    case_id: "",
-    payee_name: "Stadtwerke München",
-    payee_iban: DEMO_PLACEHOLDER_IBAN,
-    amount: 89.0,
-    frequency: "monthly",
-    type: "lastschrift",
-    selected: true,
-  },
-  {
-    id: "demo-3",
-    case_id: "",
-    payee_name: "Amazon Prime",
-    payee_iban: DEMO_PLACEHOLDER_IBAN,
-    amount: 8.99,
-    frequency: "monthly",
-    type: "lastschrift",
-    selected: true,
-  },
-  {
-    id: "demo-4",
-    case_id: "",
-    payee_name: "Miete — Hausverwaltung GmbH",
-    payee_iban: DEMO_PLACEHOLDER_IBAN,
-    amount: 950.0,
-    frequency: "monthly",
-    type: "dauerauftrag",
-    selected: true,
-  },
-  {
-    id: "demo-5",
-    case_id: "",
-    payee_name: "GEZ / ARD ZDF",
-    payee_iban: DEMO_PLACEHOLDER_IBAN,
-    amount: 18.36,
-    frequency: "quarterly",
-    type: "lastschrift",
-    selected: true,
-  },
-  {
-    id: "demo-6",
-    case_id: "",
-    payee_name: "Fitnessstudio Elements",
-    payee_iban: DEMO_PLACEHOLDER_IBAN,
-    amount: 29.0,
-    frequency: "monthly",
-    type: "lastschrift",
-    selected: true,
-  },
-];
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -105,7 +41,10 @@ function Index() {
       switchDate: "2026-06-01",
       oldIban: normalizeIban("DE12 3456 7890 1234 5678 90"),
       oldBankName: "Sparkasse München",
-      selectedPayments: DEMO_SELECTED_PAYMENTS,
+      selectedPayments: DEMO_PAYMENTS.map((p) => zahlungRowToStorePayment(p, true)),
+      noPaymentsSelected: false,
+      zahlungenManualRows: null,
+      kontoauszugFotoHinterlegt: false,
     });
     navigate({ to: "/wechsel" });
   };

@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import type { Payment } from "@/types/database";
+import type { ZahlungListRow } from "@/lib/map-zahlung-row";
 
 export interface FlowFormData {
   customerName: string;
@@ -17,6 +18,15 @@ export interface FlowFormData {
   oldIban: string;
   oldBankName: string;
   selectedPayments: Payment[];
+  /** User finished Zahlungen step with „Keine übernehmen“. */
+  noPaymentsSelected?: boolean;
+  /**
+   * Manually captured payments from altes-konto; on /zahlungen they are shown
+   * first, then DEMO_PAYMENTS (bank analysis demo) is appended. null after automatic import.
+   */
+  zahlungenManualRows?: ZahlungListRow[] | null;
+  /** true, wenn im manuellen Flow ein Kontoauszug-Foto angehängt wurde (Schritt altes-konto). */
+  kontoauszugFotoHinterlegt?: boolean;
 }
 
 export const initialFormData: FlowFormData = {
@@ -27,6 +37,9 @@ export const initialFormData: FlowFormData = {
   oldIban: "",
   oldBankName: "",
   selectedPayments: [],
+  noPaymentsSelected: false,
+  zahlungenManualRows: null,
+  kontoauszugFotoHinterlegt: false,
 };
 
 const STEP_PATHS: Record<number, string> = {

@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { ZahlungListRow } from "@/lib/map-zahlung-row";
 import { zahlungRowToStorePayment } from "@/lib/map-zahlung-row";
+import { DEMO_PAYMENTS } from "@/data/demo-payments";
 import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/zahlungen")({
@@ -17,78 +18,22 @@ export const Route = createFileRoute("/zahlungen")({
   component: ZahlungenPage,
 });
 
-const PAYMENTS: ZahlungListRow[] = [
-  {
-    id: "1",
-    name: "Netflix",
-    type: "Lastschrift",
-    iban: "DE89 **** **** 1234",
-    amount: 12.99,
-    frequency: "monatlich",
-  },
-  {
-    id: "2",
-    name: "Stadtwerke München",
-    type: "Lastschrift",
-    iban: "DE12 **** **** 5678",
-    amount: 89.5,
-    frequency: "monatlich",
-  },
-  {
-    id: "3",
-    name: "Amazon Prime",
-    type: "Lastschrift",
-    iban: "DE45 **** **** 9012",
-    amount: 89.9,
-    frequency: "jährlich",
-  },
-  {
-    id: "4",
-    name: "Miete — Hausverwaltung GmbH",
-    type: "Dauerauftrag",
-    iban: "DE67 **** **** 3456",
-    amount: 1240.0,
-    frequency: "monatlich",
-  },
-  {
-    id: "5",
-    name: "GEZ / ARD ZDF Beitragsservice",
-    type: "Lastschrift",
-    iban: "DE34 **** **** 7890",
-    amount: 55.08,
-    frequency: "quartalsweise",
-  },
-  {
-    id: "6",
-    name: "Vodafone GmbH",
-    type: "Lastschrift",
-    iban: "DE56 **** **** 2345",
-    amount: 39.99,
-    frequency: "monatlich",
-  },
-  {
-    id: "7",
-    name: "Spotify AB",
-    type: "Lastschrift",
-    iban: "DE78 **** **** 6789",
-    amount: 10.99,
-    frequency: "monatlich",
-  },
-  {
-    id: "8",
-    name: "Allianz Versicherung",
-    type: "Dauerauftrag",
-    iban: "DE90 **** **** 0123",
-    amount: 287.5,
-    frequency: "jährlich",
-  },
-];
-
 function formatEur(n: number) {
   return n.toLocaleString("de-DE", {
     style: "currency",
     currency: "EUR",
   });
+}
+
+/** Match Auswertungs-Logik für monatliche Äquivalente (deutsche Frequenz-Labels). */
+function monthlyEquivalent(p: ZahlungListRow): number {
+  const f = p.frequency.toLowerCase();
+  let factor = 0;
+  if (f === "monatlich") factor = 1;
+  else if (f === "quartalsweise") factor = 1 / 3;
+  else if (f === "halbjährlich") factor = 1 / 6;
+  else if (f === "jährlich") factor = 1 / 12;
+  return p.amount * factor;
 }
 
 function Ribbons() {
@@ -120,20 +65,109 @@ function Ribbons() {
   );
 }
 
+function PaymentRow({
+  p,
+  isOn,
+  onToggle,
+  disabled,
+  variant,
+}: {
+  p: ZahlungListRow;
+  isOn: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  variant: "low" | "default";
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onToggle}
+        className={cn(
+          "w-full text-left rounded-2xl border-2 bg-card px-4 sm:px-5 py-4 flex items-center gap-4 transition-all",
+          disabled && "opacity-50 pointer-events-none",
+          variant === "low" &&
+            "border-[color:var(--secondary)]/50 ring-1 ring-[color:var(--secondary)]/20",
+          isOn
+            ? "border-primary/60 shadow-[0_8px_30px_-15px_oklch(0.88_0.21_130/0.5)]"
+            : "border-border hover:border-primary/30 opacity-80",
+        )}
+      >
+        <span
+          className={cn(
+            "shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors",
+            isOn
+              ? "bg-primary border-primary text-primary-foreground"
+              : "border-border bg-background/40",
+          )}
+        >
+          {isOn && <Check className="h-4 w-4" strokeWidth={3} />}
+        </span>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold truncate">{p.name}</span>
+            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+              {p.type}
+            </span>
+            {variant === "low" && (
+              <span className="inline-flex items-center rounded-full border border-[color:var(--secondary)]/45 bg-[color:var(--secondary)]/15 px-2 py-0.5 text-[10px] font-semibold text-[color:var(--secondary)]">
+                Prüfung empfohlen
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground font-mono truncate">
+            {p.iban}
+          </div>
+        </div>
+
+        <div className="text-right shrink-0">
+          <div className="font-bold text-primary text-base">{formatEur(p.amount)}</div>
+          <div className="text-xs text-muted-foreground">{p.frequency}</div>
+        </div>
+      </button>
+    </li>
+  );
+}
+
 function ZahlungenPage() {
-  const { setFormData, nextStep, prevStep, currentStep } = useFlowStore();
-  const [selected, setSelected] = useState<Set<string>>(
-    new Set(PAYMENTS.map((p) => p.id)),
+  const { setFormData, nextStep, prevStep, currentStep, formData } = useFlowStore();
+  const manualRows = formData.zahlungenManualRows ?? [];
+  const demoPayments = DEMO_PAYMENTS;
+
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [noneTransfer, setNoneTransfer] = useState(false);
+
+  const lowConfidence = useMemo(
+    () => demoPayments.filter((p) => p.confidence === "low"),
+    [],
+  );
+  const highMediumDemo = useMemo(
+    () => demoPayments.filter((p) => p.confidence !== "low"),
+    [],
   );
 
-  const allSelected = selected.size === PAYMENTS.length;
-  const count = selected.size;
+  const allRows = useMemo(
+    () => [...manualRows, ...demoPayments],
+    [manualRows],
+  );
 
-  const toggleAll = () => {
-    setSelected(allSelected ? new Set() : new Set(PAYMENTS.map((p) => p.id)));
-  };
+  const selectableIds = useMemo(() => {
+    const manualIds = manualRows.map((p) => p.id);
+    const demoIds = highMediumDemo.map((p) => p.id);
+    return [...manualIds, ...demoIds];
+  }, [manualRows, highMediumDemo]);
+
+  const totalEntries = allRows.length;
+
+  const count = selected.size;
+  const allSelectableOn =
+    selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
 
   const toggle = (id: string) => {
+    if (noneTransfer) return;
+    setNoneTransfer(false);
     setSelected((s) => {
       const next = new Set(s);
       if (next.has(id)) next.delete(id);
@@ -142,21 +176,19 @@ function ZahlungenPage() {
     });
   };
 
+  const setNoneTransferChecked = (checked: boolean) => {
+    setNoneTransfer(checked);
+    if (checked) setSelected(new Set());
+  };
+
   const totalMonthly = useMemo(() => {
-    return PAYMENTS.filter((p) => selected.has(p.id)).reduce((sum, p) => {
-      const factor =
-        p.frequency === "monatlich"
-          ? 1
-          : p.frequency === "quartalsweise"
-            ? 1 / 3
-            : p.frequency === "halbjährlich"
-              ? 1 / 6
-              : p.frequency === "jährlich"
-                ? 1 / 12
-                : 0;
-      return sum + p.amount * factor;
-    }, 0);
-  }, [selected]);
+    return allRows
+      .filter((p) => selected.has(p.id))
+      .reduce((sum, p) => sum + monthlyEquivalent(p), 0);
+  }, [selected, allRows]);
+
+  const canContinue = noneTransfer || count > 0;
+  const hasManualBlend = manualRows.length > 0;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -193,80 +225,136 @@ function ZahlungenPage() {
               <p className="mt-3 text-sm sm:text-base text-[color:var(--tertiary)]">
                 Wählen Sie aus, welche auf Ihr neues Konto übertragen werden sollen.
               </p>
+              {hasManualBlend && (
+                <p className="mt-2 text-xs text-muted-foreground max-w-xl mx-auto">
+                  Zuerst Ihre erfassten Zahlungen, darunter zusätzlich die Demo-Auswertung
+                  der Bank (manuelle Erfassung + Beispieldaten).
+                </p>
+              )}
             </div>
 
-            {/* Top bar */}
-            <div className="mt-8 flex items-center justify-between gap-4 rounded-2xl border border-border bg-card px-4 sm:px-5 py-3">
+            <div className="mt-6 rounded-2xl border border-border bg-card/80 px-4 sm:px-5 py-4 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Switch
+                  checked={noneTransfer}
+                  onCheckedChange={setNoneTransferChecked}
+                  className="data-[state=checked]:bg-[color:var(--secondary)] mt-0.5"
+                />
+                <span className="text-sm leading-snug">
+                  <span className="font-medium">Keine dieser Zahlungen übernehmen</span>
+                  <span className="block text-xs text-muted-foreground mt-1">
+                    Aktivieren Sie dies, wenn Sie keine Lastschriften oder Daueraufträge
+                    umstellen möchten.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div
+              className={cn(
+                "mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-card px-4 sm:px-5 py-3",
+                noneTransfer && "opacity-40 pointer-events-none",
+              )}
+            >
               <label className="flex items-center gap-3 cursor-pointer">
                 <Switch
-                  checked={allSelected}
-                  onCheckedChange={toggleAll}
+                  checked={allSelectableOn}
+                  onCheckedChange={(checked) => {
+                    if (noneTransfer) return;
+                    setSelected((prev) => {
+                      const next = new Set(prev);
+                      if (checked) {
+                        for (const id of selectableIds) next.add(id);
+                      } else {
+                        for (const id of selectableIds) next.delete(id);
+                      }
+                      return next;
+                    });
+                  }}
+                  disabled={noneTransfer || selectableIds.length === 0}
                   className="data-[state=checked]:bg-primary"
                 />
-                <span className="text-sm font-medium">Alle auswählen</span>
+                <span className="text-sm font-medium">
+                  Alle sicheren Treffer auswählen
+                </span>
               </label>
               <span className="inline-flex items-center rounded-full bg-primary/15 border border-primary/40 px-3 py-1 text-xs font-semibold text-primary">
-                {count} von {PAYMENTS.length} ausgewählt
+                {count} von {totalEntries} ausgewählt
               </span>
             </div>
 
-            {/* Payment list */}
-            <ul className="mt-4 space-y-3">
-              {PAYMENTS.map((p) => {
-                const isOn = selected.has(p.id);
-                return (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => toggle(p.id)}
-                      className={cn(
-                        "w-full text-left rounded-2xl border-2 bg-card px-4 sm:px-5 py-4 flex items-center gap-4 transition-all",
-                        isOn
-                          ? "border-primary/60 shadow-[0_8px_30px_-15px_oklch(0.88_0.21_130/0.5)]"
-                          : "border-border hover:border-primary/30 opacity-80",
-                      )}
-                    >
-                      {/* Custom checkbox */}
-                      <span
-                        className={cn(
-                          "shrink-0 h-6 w-6 rounded-md border-2 flex items-center justify-center transition-colors",
-                          isOn
-                            ? "bg-primary border-primary text-primary-foreground"
-                            : "border-border bg-background/40",
-                        )}
-                      >
-                        {isOn && <Check className="h-4 w-4" strokeWidth={3} />}
-                      </span>
+            {manualRows.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-sm font-bold text-foreground tracking-tight mb-2">
+                  Ihre erfassten Zahlungen
+                </h2>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Von Ihnen im Schritt „Altes Konto“ erfasst.
+                </p>
+                <ul className="space-y-3">
+                  {manualRows.map((p) => (
+                    <PaymentRow
+                      key={p.id}
+                      p={p}
+                      isOn={selected.has(p.id)}
+                      onToggle={() => toggle(p.id)}
+                      disabled={noneTransfer}
+                      variant="default"
+                    />
+                  ))}
+                </ul>
+              </div>
+            )}
 
-                      {/* Middle */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold truncate">
-                            {p.name}
-                          </span>
-                          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                            {p.type}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground font-mono truncate">
-                          {p.iban}
-                        </div>
-                      </div>
+            {hasManualBlend && (lowConfidence.length > 0 || highMediumDemo.length > 0) && (
+              <p className="mt-8 text-xs text-muted-foreground border-t border-border pt-4">
+                Aus simulierter Bankauswertung (Demo), inkl. Unsicherheitsstufen wie bei
+                automatischer Analyse.
+              </p>
+            )}
 
-                      {/* Right */}
-                      <div className="text-right shrink-0">
-                        <div className="font-bold text-primary text-base">
-                          {formatEur(p.amount)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {p.frequency}
-                        </div>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            {lowConfidence.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-sm font-bold text-[color:var(--secondary)] tracking-tight mb-2">
+                  Bitte einzeln prüfen (unsichere Zuordnung)
+                </h2>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Diese Zahlungen konnten wir nicht mit hoher Sicherheit zuordnen.
+                </p>
+                <ul className="space-y-3">
+                  {lowConfidence.map((p) => (
+                    <PaymentRow
+                      key={p.id}
+                      p={p}
+                      isOn={selected.has(p.id)}
+                      onToggle={() => toggle(p.id)}
+                      disabled={noneTransfer}
+                      variant="low"
+                    />
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-8">
+              <h2 className="text-sm font-bold text-foreground tracking-tight mb-3">
+                {hasManualBlend
+                  ? "Demo: Erkannt (mittlere / hohe Sicherheit)"
+                  : "Erkannt (mittlere / hohe Sicherheit)"}
+              </h2>
+              <ul className="space-y-3">
+                {highMediumDemo.map((p) => (
+                  <PaymentRow
+                    key={p.id}
+                    p={p}
+                    isOn={selected.has(p.id)}
+                    onToggle={() => toggle(p.id)}
+                    disabled={noneTransfer}
+                    variant="default"
+                  />
+                ))}
+              </ul>
+            </div>
 
             <div className="mt-8 text-center">
               <button
@@ -281,33 +369,38 @@ function ZahlungenPage() {
           </div>
         </main>
 
-        {/* Sticky bottom bar */}
         <div className="sticky bottom-0 z-20 border-t border-border bg-card/95 backdrop-blur-md">
           <div className="mx-auto max-w-3xl px-5 sm:px-8 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold">
-                {count} {count === 1 ? "Zahlung wird" : "Zahlungen werden"}{" "}
-                übertragen
+                {noneTransfer
+                  ? "Keine Zahlungen werden übernommen"
+                  : `${count} ${count === 1 ? "Zahlung wird" : "Zahlungen werden"} übertragen`}
               </div>
               <div className="text-xs text-muted-foreground">
-                ca. {formatEur(totalMonthly)} / Monat
+                {noneTransfer ? "—" : `ca. ${formatEur(totalMonthly)} / Monat`}
               </div>
             </div>
             <Button
               type="button"
-              disabled={count === 0}
+              disabled={!canContinue}
               onClick={() => {
-                const rows = PAYMENTS.filter((p) => selected.has(p.id));
-                setFormData({
-                  selectedPayments: rows.map((p) =>
-                    zahlungRowToStorePayment(p, true),
-                  ),
-                });
+                if (noneTransfer) {
+                  setFormData({ selectedPayments: [], noPaymentsSelected: true });
+                } else {
+                  const rows = allRows.filter((p) => selected.has(p.id));
+                  setFormData({
+                    selectedPayments: rows.map((p) =>
+                      zahlungRowToStorePayment(p, true),
+                    ),
+                    noPaymentsSelected: false,
+                  });
+                }
                 nextStep();
               }}
               className={cn(
                 "h-12 px-7 text-base font-semibold transition-all w-full sm:w-auto",
-                count > 0
+                canContinue
                   ? "bg-primary text-primary-foreground hover:bg-[color:var(--primary-hover)] shadow-[0_8px_30px_-8px_oklch(0.88_0.21_130/0.6)] ring-1 ring-primary/40"
                   : "bg-muted text-muted-foreground cursor-not-allowed opacity-60 hover:bg-muted",
               )}

@@ -8,9 +8,8 @@ import { toast } from "sonner";
 import { Stepper } from "@/components/Stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatIban } from "@/lib/iban";
+import { formatIban, normalizeIban } from "@/lib/iban";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
-import { normalizeIban } from "@/lib/iban";
 import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/pruefen")({
@@ -34,6 +33,11 @@ function formatSwitchDate(iso: string) {
     return iso;
   }
 }
+
+/** Anzeige auf /pruefen, wenn der Flow noch keine neuen Kontodaten hat (Demo-Konsistenz mit Start-Demo). */
+const DEMO_REVIEW_CUSTOMER = "Anna Müller";
+const DEMO_REVIEW_NEW_IBAN = "DE89370400440532013000";
+const DEMO_REVIEW_SWITCH_DATE = "2026-06-01";
 
 function Ribbons() {
   return (
@@ -80,12 +84,15 @@ function PruefenPage() {
   const visible = showAll ? reviewPayments : reviewPayments.slice(0, 3);
   const remaining = reviewPayments.length - 3;
 
-  const holderDisplay = formData.customerName?.trim() || "—";
-  const ibanDisplay = formData.newIban
-    ? formatIban(formData.newIban)
-    : "—";
-  const bankDisplay = formData.newBankName?.trim() || "—";
-  const dateDisplay = formatSwitchDate(formData.switchDate);
+  const holderDisplay =
+    formData.customerName?.trim() || DEMO_REVIEW_CUSTOMER;
+  const ibanDisplay = formatIban(
+    formData.newIban?.trim() || DEMO_REVIEW_NEW_IBAN,
+  );
+  const bankDisplay = formData.newBankName?.trim() || "GFS";
+  const dateDisplay = formatSwitchDate(
+    formData.switchDate?.trim() || DEMO_REVIEW_SWITCH_DATE,
+  );
 
   const submitSwitch = async () => {
     if (!confirmed || saving) return;
@@ -98,17 +105,20 @@ function PruefenPage() {
     setSaving(true);
     try {
       const supabase = getSupabase();
+      const customerName =
+        formData.customerName?.trim() || DEMO_REVIEW_CUSTOMER;
+      const newIbanNorm =
+        normalizeIban(formData.newIban?.trim() || DEMO_REVIEW_NEW_IBAN) || "";
       const switchDate =
-        formData.switchDate?.trim() ||
-        new Date().toISOString().slice(0, 10);
+        formData.switchDate?.trim() || DEMO_REVIEW_SWITCH_DATE;
 
       const { data: caseRow, error: caseError } = await supabase
         .from("switching_cases")
         .insert({
-          customer_name: formData.customerName.trim(),
+          customer_name: customerName,
           old_iban: normalizeIban(formData.oldIban || "") || "",
-          new_iban: normalizeIban(formData.newIban || "") || "",
-          new_bank_name: formData.newBankName.trim() || "Unbekannt",
+          new_iban: newIbanNorm,
+          new_bank_name: formData.newBankName?.trim() || "GFS",
           switch_date: switchDate,
           status: "pending" as const,
         })

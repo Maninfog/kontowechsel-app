@@ -10,6 +10,8 @@ export interface SwitchingCase {
   session_owner_id?: string;
 }
 
+export type PaymentConfidence = "high" | "medium" | "low";
+
 export interface Payment {
   id: string;
   case_id: string;
@@ -19,4 +21,6 @@ export interface Payment {
   frequency: "monthly" | "quarterly" | "yearly" | "weekly";
   type: "lastschrift" | "dauerauftrag";
   selected: boolean;
+  /** Model / rule match confidence; optional for legacy rows */
+  confidence?: PaymentConfidence;
 }

@@ -1,4 +1,4 @@
-import type { Payment } from "@/types/database";
+import type { Payment, PaymentConfidence } from "@/types/database";
 
 export type ZahlungListType = "Lastschrift" | "Dauerauftrag";
 
@@ -9,6 +9,7 @@ export interface ZahlungListRow {
   iban: string;
   amount: number;
   frequency: string;
+  confidence?: PaymentConfidence;
 }
 
 export function zahlungRowToStorePayment(
@@ -31,5 +32,6 @@ export function zahlungRowToStorePayment(
     frequency,
     type: row.type === "Lastschrift" ? "lastschrift" : "dauerauftrag",
     selected,
+    confidence: row.confidence ?? "high",
   };
 }

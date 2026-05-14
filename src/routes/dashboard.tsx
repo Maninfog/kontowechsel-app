@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/Stepper";
 import { cn } from "@/lib/utils";
 import { flowStepToStepperIndex, useFlowStore } from "@/store/useFlowStore";
+import type { Payment } from "@/types/database";
+import { DEMO_PAYMENTS, DEMO_PARTNER_STATUS_BY_ID } from "@/data/demo-payments";
+import type { ZahlungListRow } from "@/lib/map-zahlung-row";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -36,23 +39,78 @@ interface PartnerRow {
   status: Status;
 }
 
-const PARTNERS: PartnerRow[] = [
-  { id: "1", name: "Netflix", type: "Lastschrift", amount: 12.99, cycle: "Monat", color: "#E50914", initial: "N", status: "confirmed" },
-  { id: "2", name: "Stadtwerke München", type: "Lastschrift", amount: 89.0, cycle: "Monat", color: "#0A8FBF", initial: "S", status: "confirmed" },
-  { id: "3", name: "Amazon Prime", type: "Lastschrift", amount: 8.99, cycle: "Monat", color: "#FF9900", initial: "A", status: "notified" },
-  { id: "4", name: "Miete — Hausverwaltung GmbH", type: "Dauerauftrag", amount: 950.0, cycle: "Monat", color: "#7B5BD6", initial: "H", status: "action" },
-  { id: "5", name: "GEZ / ARD ZDF", type: "Lastschrift", amount: 18.36, cycle: "Monat", color: "#003480", initial: "G", status: "pending" },
-  { id: "6", name: "Fitnessstudio Elements", type: "Lastschrift", amount: 29.0, cycle: "Monat", color: "#D946EF", initial: "F", status: "pending" },
-];
-
-const TIMELINE = [
-  { state: "done", time: "08.05.2026 14:23", text: "Wechselauftrag eingegangen" },
-  { state: "done", time: "08.05.2026 14:24", text: "Benachrichtigungen versendet (6)" },
-  { state: "done", time: "09.05.2026 09:11", text: "Netflix hat bestätigt" },
-  { state: "done", time: "09.05.2026 11:43", text: "Stadtwerke München hat bestätigt" },
-  { state: "active", time: "Ausstehend", text: "Weitere Bestätigungen erwartet" },
-  { state: "future", time: "01.06.2026", text: "Kontowechsel abgeschlossen" },
+const DASHBOARD_COLORS = [
+  "#E50914",
+  "#0A8FBF",
+  "#FF9900",
+  "#7B5BD6",
+  "#003480",
+  "#36A18B",
+  "#D946EF",
+  "#14854F",
 ] as const;
+
+function brandForPartner(name: string, id: string): { initial: string; color: string } {
+  const initial = name.trim().charAt(0).toUpperCase() || "?";
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h + id.charCodeAt(i)) | 0;
+  const color = DASHBOARD_COLORS[Math.abs(h) % DASHBOARD_COLORS.length];
+  return { initial, color };
+}
+
+function zahlungStringCycle(f: string): string {
+  const x = f.toLowerCase();
+  if (x.includes("quart")) return "Quartal";
+  if (x.includes("jahr")) return "Jahr";
+  if (x.includes("woche")) return "Woche";
+  if (x.includes("halb")) return "Halbjahr";
+  return "Monat";
+}
+
+function paymentFrequencyCycle(f: Payment["frequency"]): string {
+  switch (f) {
+    case "monthly":
+      return "Monat";
+    case "quarterly":
+      return "Quartal";
+    case "yearly":
+      return "Jahr";
+    case "weekly":
+      return "Woche";
+    default:
+      return "Monat";
+  }
+}
+
+function paymentToPartnerRow(p: Payment): PartnerRow {
+  const status = (DEMO_PARTNER_STATUS_BY_ID[p.id] ?? "pending") as Status;
+  const { initial, color } = brandForPartner(p.payee_name, p.id);
+  return {
+    id: p.id,
+    name: p.payee_name,
+    type: p.type === "lastschrift" ? "Lastschrift" : "Dauerauftrag",
+    amount: p.amount,
+    cycle: paymentFrequencyCycle(p.frequency),
+    color,
+    initial,
+    status,
+  };
+}
+
+function demoRowToPartnerRow(row: ZahlungListRow): PartnerRow {
+  const status = (DEMO_PARTNER_STATUS_BY_ID[row.id] ?? "pending") as Status;
+  const { initial, color } = brandForPartner(row.name, row.id);
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    amount: row.amount,
+    cycle: zahlungStringCycle(row.frequency),
+    color,
+    initial,
+    status,
+  };
+}
 
 const FILTERS: { id: "all" | Status; label: string }[] = [
   { id: "all", label: "Alle" },
@@ -171,15 +229,38 @@ function StatusBadge({ status }: { status: Status }) {
 }
 
 function DashboardPage() {
-  const { currentStep } = useFlowStore();
+  const { currentStep, formData } = useFlowStore();
 
   const [filter, setFilter] = useState<"all" | Status>("all");
 
-  const confirmed = PARTNERS.filter((p) => p.status === "confirmed").length;
+  const partners = useMemo((): PartnerRow[] => {
+    if (formData.noPaymentsSelected) return [];
+    const chosen = formData.selectedPayments ?? [];
+    if (chosen.length > 0) {
+      return chosen.map(paymentToPartnerRow);
+    }
+    return DEMO_PAYMENTS.map(demoRowToPartnerRow);
+  }, [formData.selectedPayments, formData.noPaymentsSelected]);
+
+  const timeline = useMemo(() => {
+    const n = partners.length;
+    return [
+      { state: "done" as const, time: "08.05.2026 14:23", text: "Wechselauftrag eingegangen" },
+      { state: "done" as const, time: "08.05.2026 14:24", text: `Benachrichtigungen versendet (${n})` },
+      { state: "done" as const, time: "09.05.2026 09:11", text: "Netflix hat bestätigt" },
+      { state: "done" as const, time: "09.05.2026 11:43", text: "Stadtwerke München hat bestätigt" },
+      { state: "active" as const, time: "Ausstehend", text: "Weitere Bestätigungen erwartet" },
+      { state: "future" as const, time: "01.06.2026", text: "Kontowechsel abgeschlossen" },
+    ];
+  }, [partners.length]);
+
+  const confirmed = partners.filter((p) => p.status === "confirmed").length;
   const filtered = useMemo(
-    () => (filter === "all" ? PARTNERS : PARTNERS.filter((p) => p.status === filter)),
-    [filter],
+    () => (filter === "all" ? partners : partners.filter((p) => p.status === filter)),
+    [filter, partners],
   );
+
+  const totalPartners = Math.max(partners.length, 1);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -234,7 +315,7 @@ function DashboardPage() {
                 </p>
               </div>
               <div className="flex flex-col items-center gap-2 shrink-0">
-                <ProgressRing value={confirmed} total={PARTNERS.length} />
+                <ProgressRing value={confirmed} total={totalPartners} />
                 <span className="text-xs text-muted-foreground">
                   Zahlungspartner bestätigt
                 </span>
@@ -287,27 +368,34 @@ function DashboardPage() {
               </div>
 
               <ul className="space-y-3">
-                {filtered.map((p) => (
-                  <li
-                    key={p.id}
-                    className="rounded-2xl border border-border bg-card px-4 sm:px-5 py-4 flex items-center gap-4"
-                  >
-                    <div
-                      className="h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
-                      style={{ backgroundColor: p.color }}
-                    >
-                      {p.initial}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold truncate">{p.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {p.type} · {formatEur(p.amount)}/{p.cycle}
-                      </div>
-                    </div>
-                    <StatusBadge status={p.status} />
+                {partners.length === 0 && filter === "all" ? (
+                  <li className="rounded-2xl border border-dashed border-border bg-card/40 px-5 py-10 text-center text-sm text-muted-foreground">
+                    Sie haben keine Zahlungen für den Wechsel ausgewählt. Sie können
+                    jederzeit Zahlungspartner im Nachgang hinzufügen.
                   </li>
-                ))}
-                {filtered.length === 0 && (
+                ) : (
+                  filtered.map((p) => (
+                    <li
+                      key={p.id}
+                      className="rounded-2xl border border-border bg-card px-4 sm:px-5 py-4 flex items-center gap-4"
+                    >
+                      <div
+                        className="h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                        style={{ backgroundColor: p.color }}
+                      >
+                        {p.initial}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold truncate">{p.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {p.type} · {formatEur(p.amount)}/{p.cycle}
+                        </div>
+                      </div>
+                      <StatusBadge status={p.status} />
+                    </li>
+                  ))
+                )}
+                {partners.length > 0 && filtered.length === 0 && (
                   <li className="rounded-2xl border border-dashed border-border bg-card/40 px-5 py-10 text-center text-sm text-muted-foreground">
                     Keine Einträge in dieser Kategorie.
                   </li>
@@ -324,7 +412,7 @@ function DashboardPage() {
                     aria-hidden="true"
                     className="absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-primary via-primary/50 to-border"
                   />
-                  {TIMELINE.map((t, i) => (
+                  {timeline.map((t, i) => (
                     <li key={i} className="relative pl-9">
                       <span
                         className={cn(
@@ -376,7 +464,7 @@ function DashboardPage() {
                 <div className="p-6 sm:p-7 pl-7 sm:pl-8">
                   <h3 className="text-lg font-bold">Ihre Dokumente</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    6 PDFs · Generiert am 08.05.2026
+                    {partners.length} PDFs · Generiert am 08.05.2026
                   </p>
                   <Button
                     type="button"
