@@ -1,10 +1,12 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { ArrowRight, Mail, Lock, Building2 } from "lucide-react";
+
 import { AuthShell } from "@/components/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowRight, Mail, Lock, Building2 } from "lucide-react";
+import { useFlowStore } from "@/store/useFlowStore";
 
 export const Route = createFileRoute("/mitarbeiter")({
   head: () => ({
@@ -12,15 +14,19 @@ export const Route = createFileRoute("/mitarbeiter")({
       { title: "Mitarbeiter-Login — Global Finance Solutions" },
       {
         name: "description",
-        content: "Interner Zugang für Mitarbeiter von Global Finance Solutions.",
+        content: "Interner Zugang: Wechsel für Kundinnen und Kunden erfassen.",
       },
     ],
   }),
   component: MitarbeiterPage,
 });
 
+/**
+ * Nach Login: Mitarbeiter führt den kompletten Wechsel für den Kunden durch
+ * (z. B. analoger Kunde) — Einstieg Kundendaten unter `/wechsel`.
+ */
 function MitarbeiterPage() {
-  const navigate = useNavigate();
+  const { enterEmployeeAssistedFlow } = useFlowStore();
   const [employeeId, setEmployeeId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,10 +39,10 @@ function MitarbeiterPage() {
   return (
     <AuthShell
       title="Mitarbeiter-Anmeldung"
-      subtitle="Interner Zugang für autorisierte Mitarbeiter."
+      subtitle="Nach der Anmeldung erfassen Sie die Kundendaten und führen den Kontowechsel im Auftrag durch."
       footer={
         <>
-          Sind Sie Kunde?{" "}
+          Kunde möchte selbst wechseln?{" "}
           <Link to="/start" className="text-primary font-medium hover:underline">
             Kontowechsel starten
           </Link>
@@ -47,7 +53,7 @@ function MitarbeiterPage() {
         onSubmit={(e) => {
           e.preventDefault();
           if (!canSubmit) return;
-          navigate({ to: "/wechsel" });
+          enterEmployeeAssistedFlow();
         }}
         className="space-y-5"
       >
@@ -116,12 +122,12 @@ function MitarbeiterPage() {
               : "bg-muted text-muted-foreground cursor-not-allowed opacity-60 hover:bg-muted",
           ].join(" ")}
         >
-          Anmelden
+          Anmelden und Kundendaten erfassen
           <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          Geschützter interner Bereich · 2FA aktiviert
+          Prototyp: Prüfung nur im Formular · kein echter Auth-Server
         </p>
       </form>
     </AuthShell>

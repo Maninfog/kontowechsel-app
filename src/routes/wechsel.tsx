@@ -69,7 +69,9 @@ function Ribbons() {
 }
 
 function NeuesKontoPage() {
-  const { formData, setFormData, nextStep, prevStep, currentStep } = useFlowStore();
+  const { formData, setFormData, nextStep, prevStep, currentStep, flowActor } =
+    useFlowStore();
+  const isEmployee = flowActor === "employee";
   const [holder, setHolder] = useState("");
   const [iban, setIban] = useState("");
   const [date, setDate] = useState<Date | undefined>();
@@ -126,10 +128,12 @@ function NeuesKontoPage() {
           <div className="mx-auto max-w-xl">
             <div className="text-center">
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-                Ihr neues Konto
+                {isEmployee ? "Neues Konto des Kunden" : "Ihr neues Konto"}
               </h1>
               <p className="mt-3 text-sm sm:text-base text-[color:var(--tertiary)]">
-                Geben Sie die Daten Ihres neuen Kontos ein.
+                {isEmployee
+                  ? "Erfassen Sie die Kundendaten für den Kontowechsel."
+                  : "Geben Sie die Daten Ihres neuen Kontos ein."}
               </p>
             </div>
 
@@ -149,7 +153,9 @@ function NeuesKontoPage() {
             >
               {/* Kontoinhaber */}
               <div className="space-y-2">
-                <Label htmlFor="holder">Kontoinhaber</Label>
+                <Label htmlFor="holder">
+                  {isEmployee ? "Kontoinhaber (Kunde)" : "Kontoinhaber"}
+                </Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input

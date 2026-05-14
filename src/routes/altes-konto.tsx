@@ -5,14 +5,17 @@ import {
   ArrowRight,
   Building2,
   Camera,
+  IdCard,
   ImageIcon,
   Loader2,
   Lock,
   Mail,
   Pencil,
+  Phone,
   Plus,
   Sparkles,
   Trash2,
+  User,
 } from "lucide-react";
 
 import { Stepper } from "@/components/Stepper";
@@ -48,9 +51,10 @@ export const Route = createFileRoute("/altes-konto")({
 
 type Mode = "auto" | "manual" | null;
 
-/** Sub-flow on this route: login → mode → bank (both paths) → auto: bank-login + analyze | manual: payments */
+/** Sub-flow: GFS login (nur Kunde) | Mitarbeiter: Kundenprofil → mode → bank → … */
 type Screen =
   | "gfs_login"
+  | "employee_customer_profile"
   | "choose_mode"
   | "auto_bank"
   | "auto_analyze"
@@ -136,9 +140,13 @@ function Ribbons() {
 }
 
 function AltesKontoPage() {
-  const { setFormData, nextStep, prevStep, currentStep } = useFlowStore();
+  const { setFormData, nextStep, prevStep, currentStep, flowActor, formData } =
+    useFlowStore();
+  const isEmployee = flowActor === "employee";
 
-  const [screen, setScreen] = useState<Screen>("gfs_login");
+  const [screen, setScreen] = useState<Screen>(() =>
+    isEmployee ? "employee_customer_profile" : "gfs_login",
+  );
   const [gfsEmail, setGfsEmail] = useState("");
   const [gfsPassword, setGfsPassword] = useState("");
 
@@ -187,12 +195,63 @@ function AltesKontoPage() {
     setStatementPhotoName(null);
   };
 
+  const [idDocPhotoUrl, setIdDocPhotoUrl] = useState<string | null>(null);
+  const [idDocPhotoName, setIdDocPhotoName] = useState<string | null>(null);
+  const idDocCameraInputRef = useRef<HTMLInputElement>(null);
+  const idDocGalleryInputRef = useRef<HTMLInputElement>(null);
+  const idDocPhotoUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    idDocPhotoUrlRef.current = idDocPhotoUrl;
+  }, [idDocPhotoUrl]);
+
+  useEffect(() => {
+    return () => {
+      const u = idDocPhotoUrlRef.current;
+      if (u) URL.revokeObjectURL(u);
+    };
+  }, []);
+
+  const handleIdDocPhotoPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file?.type.startsWith("image/")) return;
+    setIdDocPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setIdDocPhotoName(file.name);
+  };
+
+  const clearIdDocPhoto = () => {
+    setIdDocPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setIdDocPhotoName(null);
+  };
+
   const [draft, setDraft] = useState<Omit<ManualPayment, "id">>({
     recipient: "",
     iban: "",
     amount: "",
     cycle: "monatlich",
   });
+
+  const [profileRef, setProfileRef] = useState(
+    () => formData.assistedCustomerReference ?? "",
+  );
+  const [profilePhone, setProfilePhone] = useState(
+    () => formData.assistedCustomerPhone ?? "",
+  );
+
+  useEffect(() => {
+    if (screen !== "employee_customer_profile") return;
+    setProfileRef(formData.assistedCustomerReference ?? "");
+    setProfilePhone(formData.assistedCustomerPhone ?? "");
+  }, [screen, formData.assistedCustomerReference, formData.assistedCustomerPhone]);
+
+  const employeeProfileCanContinue = profileRef.trim().length >= 3;
 
   const gfsCanSubmit =
     gfsEmail.trim().includes("@") && gfsPassword.trim().length >= 4;
@@ -243,8 +302,11 @@ function AltesKontoPage() {
       case "gfs_login":
         prevStep();
         break;
+      case "employee_customer_profile":
+        prevStep();
+        break;
       case "choose_mode":
-        setScreen("gfs_login");
+        setScreen(isEmployee ? "employee_customer_profile" : "gfs_login");
         break;
       case "auto_bank":
         setMode(null);
@@ -265,7 +327,14 @@ function AltesKontoPage() {
   };
 
   const titleSubtitle = () => {
+    const emp = isEmployee;
     switch (screen) {
+      case "employee_customer_profile":
+        return {
+          title: "Kundenprofil",
+          subtitle:
+            "Die Kundendaten aus dem vorherigen Schritt gelten für diesen Wechsel. Ergänzen Sie eine interne Referenz, legen Sie optional einen Identitätsnachweis (Ausweis/Pass) bei — danach wählen Sie, wie die Zahlungen am alten Konto erfasst werden.",
+        };
       case "gfs_login":
         return {
           title: "Anmelden",
@@ -274,35 +343,43 @@ function AltesKontoPage() {
         };
       case "choose_mode":
         return {
-          title: "Wie sollen wir Ihre Zahlungen erfassen?",
-          subtitle:
-            "Nach der Anmeldung wählen Sie, ob wir Daten automatisch von Ihrer Bank lesen oder ob Sie sie selbst eintragen.",
+          title: emp ? "Erfassung am alten Konto" : "Wie sollen wir Ihre Zahlungen erfassen?",
+          subtitle: emp
+            ? "Wählen Sie für den Kunden: automatische Auswertung nach Bank-Anmeldung (Demo) oder manuelle Eingabe der Zahlungen."
+            : "Nach der Anmeldung wählen Sie, ob wir Daten automatisch von Ihrer Bank lesen oder ob Sie sie selbst eintragen.",
         };
       case "auto_bank":
         return {
-          title: "Wählen Sie Ihre bisherige Bank",
-          subtitle:
-            "Anschließend melden Sie sich bei Ihrer Bank an (Demo). Wir lesen danach Ihre wiederkehrenden Zahlungen aus.",
+          title: emp ? "Bisherige Bank des Kunden" : "Wählen Sie Ihre bisherige Bank",
+          subtitle: emp
+            ? "Anschließend Demo-Anmeldung bei der Bank — die Auswertung erfolgt für den Kundenauftrag."
+            : "Anschließend melden Sie sich bei Ihrer Bank an (Demo). Wir lesen danach Ihre wiederkehrenden Zahlungen aus.",
         };
       case "auto_analyze":
         return {
           title: "Auswertung läuft",
-          subtitle:
-            "Wir werten Ihre Umsätze aus und bereiten die Zahlungsliste vor …",
+          subtitle: emp
+            ? "Transaktionen werden für den Kundenauftrag ausgewertet …"
+            : "Wir werten Ihre Umsätze aus und bereiten die Zahlungsliste vor …",
         };
       case "manual_bank":
         return {
-          title: "Wählen Sie Ihre bisherige Bank",
-          subtitle:
-            "Danach erfassen Sie Ihre wiederkehrenden Zahlungen in einer Eingabemaske.",
+          title: emp ? "Bisherige Bank des Kunden" : "Wählen Sie Ihre bisherige Bank",
+          subtitle: emp
+            ? "Danach erfassen Sie die wiederkehrenden Zahlungen des Kunden."
+            : "Danach erfassen Sie Ihre wiederkehrenden Zahlungen in einer Eingabemaske.",
         };
       case "manual_payments":
         return {
           title: "Wiederkehrende Zahlungen",
           subtitle:
             selectedBank
-              ? `Bank: ${selectedBank} — Tragen Sie Ihre Zahlungen ein.`
-              : "Tragen Sie Ihre Zahlungen ein.",
+              ? emp
+                ? `Bank: ${selectedBank} — Zahlungen des Kunden erfassen.`
+                : `Bank: ${selectedBank} — Tragen Sie Ihre Zahlungen ein.`
+              : emp
+                ? "Tragen Sie die Zahlungen des Kunden ein."
+                : "Tragen Sie Ihre Zahlungen ein.",
         };
       default:
         return { title: "", subtitle: "" };
@@ -400,6 +477,158 @@ function AltesKontoPage() {
               </p>
             </div>
 
+            {screen === "employee_customer_profile" && (
+              <div className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-5 max-w-lg mx-auto">
+                <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-4 space-y-3 text-sm">
+                  <div className="flex items-center gap-2 font-semibold text-foreground">
+                    <User className="h-4 w-4 text-primary shrink-0" aria-hidden />
+                    Kunde (Kontoinhaber)
+                  </div>
+                  <p className="text-base text-foreground">
+                    {formData.customerName?.trim() || "—"}
+                  </p>
+                  <div className="text-xs text-muted-foreground space-y-1.5 pt-2 border-t border-border/60">
+                    <div className="font-medium text-foreground/80">Neues Konto</div>
+                    <div className="font-mono break-all">
+                      {formData.newIban
+                        ? formatIban(formData.newIban)
+                        : "—"}
+                    </div>
+                    {formData.switchDate ? (
+                      <div>Wechseldatum: {formData.switchDate}</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="assist-ref">
+                    Interne Vorgangs- oder Kundenreferenz
+                  </Label>
+                  <Input
+                    id="assist-ref"
+                    value={profileRef}
+                    onChange={(e) => setProfileRef(e.target.value)}
+                    placeholder="z. B. FILIALE-2026-08421"
+                    className="h-11 bg-background border-border"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Pflichtfeld, mindestens 3 Zeichen (Nachweis im Auftrag).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="assist-phone">Telefon Kunde (optional)</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      id="assist-phone"
+                      type="tel"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      placeholder="+49 …"
+                      className="pl-9 h-11 bg-background border-border"
+                      autoComplete="tel"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <IdCard className="h-4 w-4 text-primary shrink-0" aria-hidden />
+                    Identitätsnachweis (optional)
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Foto oder Scan von Personalausweis oder Reisepass (Vorderseite
+                    ausreichend für die Demo). Auf dem Smartphone öffnet „Foto
+                    aufnehmen“ oft direkt die Kamera. Es findet keine automatische
+                    Prüfung statt.
+                  </p>
+                  <input
+                    ref={idDocCameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    onChange={handleIdDocPhotoPick}
+                  />
+                  <input
+                    ref={idDocGalleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleIdDocPhotoPick}
+                  />
+                  {!idDocPhotoUrl ? (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => idDocCameraInputRef.current?.click()}
+                      >
+                        <Camera className="h-4 w-4 shrink-0" />
+                        Ausweis fotografieren
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => idDocGalleryInputRef.current?.click()}
+                      >
+                        <ImageIcon className="h-4 w-4 shrink-0" />
+                        Aus Galerie / Datei
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-3 pt-1">
+                      <div className="relative shrink-0 rounded-lg border border-border overflow-hidden bg-background max-w-[200px]">
+                        <img
+                          src={idDocPhotoUrl}
+                          alt="Vorschau Identitätsnachweis"
+                          className="block w-full h-auto max-h-40 object-cover object-top"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <p className="text-xs text-muted-foreground truncate">
+                          {idDocPhotoName ?? "Dokument ausgewählt"}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                          onClick={clearIdDocPhoto}
+                        >
+                          Dokument entfernen
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  type="button"
+                  className="w-full h-12 font-semibold bg-primary text-primary-foreground hover:bg-[color:var(--primary-hover)]"
+                  disabled={!employeeProfileCanContinue}
+                  onClick={() => {
+                    setFormData({
+                      assistedCustomerReference: profileRef.trim(),
+                      assistedCustomerPhone: profilePhone.trim(),
+                      identifikationsnachweisKundeHinterlegt:
+                        idDocPhotoUrl !== null,
+                    });
+                    setScreen("choose_mode");
+                  }}
+                >
+                  Weiter: altes Konto erfassen
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
             {screen === "gfs_login" && (
               <div className="mt-10 rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-5 max-w-lg mx-auto">
                 <div className="space-y-2">
@@ -455,7 +684,11 @@ function AltesKontoPage() {
                     onClick={() => setMode("auto")}
                     icon={<Building2 className="h-6 w-6" />}
                     title="Automatisch"
-                    description="Wir lesen Lastschriften und Daueraufträge nach Ihrer Bank-Anmeldung aus."
+                    description={
+                      isEmployee
+                        ? "Nach Demo-Bank-Anmeldung werden Lastschriften und Daueraufträge für den Kunden ausgewertet."
+                        : "Wir lesen Lastschriften und Daueraufträge nach Ihrer Bank-Anmeldung aus."
+                    }
                     badge="Empfohlen"
                     accent="primary"
                   />
@@ -464,7 +697,11 @@ function AltesKontoPage() {
                     onClick={() => setMode("manual")}
                     icon={<Pencil className="h-6 w-6" />}
                     title="Manuell"
-                    description="Sie wählen Ihre Bank und tragen wiederkehrende Zahlungen selbst ein."
+                    description={
+                      isEmployee
+                        ? "Bank wählen und wiederkehrende Zahlungen des Kunden eintragen."
+                        : "Sie wählen Ihre Bank und tragen wiederkehrende Zahlungen selbst ein."
+                    }
                     accent="muted"
                   />
                 </div>

@@ -220,6 +220,30 @@ function PruefenPage() {
                 <Row label="IBAN" value={ibanDisplay} mono />
                 <Row label="Bank" value={bankDisplay} />
                 <Row label="Wechseldatum" value={dateDisplay} />
+                {(formData.assistedCustomerReference?.trim() ||
+                  formData.assistedCustomerPhone?.trim() ||
+                  formData.identifikationsnachweisKundeHinterlegt) && (
+                  <>
+                    {formData.assistedCustomerReference?.trim() && (
+                      <Row
+                        label="Vorgangsreferenz"
+                        value={formData.assistedCustomerReference.trim()}
+                      />
+                    )}
+                    {formData.assistedCustomerPhone?.trim() && (
+                      <Row
+                        label="Telefon Kunde"
+                        value={formData.assistedCustomerPhone.trim()}
+                      />
+                    )}
+                    {formData.identifikationsnachweisKundeHinterlegt && (
+                      <Row
+                        label="Identitätsnachweis"
+                        value="Ausweis/Pass (Foto im Auftrag hinterlegt)"
+                      />
+                    )}
+                  </>
+                )}
                 {(formData.oldBankName?.trim() || formData.oldIban?.trim()) && (
                   <>
                     <Row

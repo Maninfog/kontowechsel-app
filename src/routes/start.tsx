@@ -38,7 +38,7 @@ function StartPage() {
         <>
           Sie sind Mitarbeiter?{" "}
           <Link to="/mitarbeiter" className="text-primary font-medium hover:underline">
-            Hier anmelden
+            Zum Mitarbeiter-Login
           </Link>
         </>
       }

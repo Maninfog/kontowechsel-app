@@ -45,6 +45,9 @@ function Index() {
       noPaymentsSelected: false,
       zahlungenManualRows: null,
       kontoauszugFotoHinterlegt: false,
+      assistedCustomerReference: "",
+      assistedCustomerPhone: "",
+      identifikationsnachweisKundeHinterlegt: false,
     });
     navigate({ to: "/wechsel" });
   };
